@@ -1,0 +1,105 @@
+require "json"
+
+class Caix < Formula
+  desc "Native Apple Core AI inference server for local language models"
+  homepage "https://github.com/RedHillsMediaFL/caix"
+  url "https://github.com/RedHillsMediaFL/caix/archive/9555b3e404905e2c50c05de100d8ec0c62c9425a.tar.gz"
+  version "0.2.0-beta"
+  sha256 "6ebccd80049aeca961bad56ebbe05704fcc7f6d836566942abf2673ee31df165"
+  license "MIT"
+  head "https://github.com/RedHillsMediaFL/caix.git", branch: "main"
+
+  depends_on arch: :arm64
+  depends_on :macos
+
+  def install
+    if OS.mac? && MacOS.version.to_s.split(".").first.to_i < 27
+      odie "caix requires macOS 27+ with Apple's Core AI runtime"
+    end
+
+    coreai_frameworks = [
+      "/System/Library/Frameworks/CoreAI.framework",
+      "/System/Library/PrivateFrameworks/CoreAI.framework",
+    ]
+    unless coreai_frameworks.any? { |path| Pathname(path).directory? }
+      odie "CoreAI.framework was not found; install a macOS build that ships Apple's Core AI runtime"
+    end
+
+    if File.exist?("Package.swift")
+      ENV["COREAI_RUNTIME"] = "1"
+      system "swift", "build", "-c", "release", "--product", "caix"
+      caix_binary = ".build/release/caix"
+    else
+      caix_binary = "bin/caix"
+      odie "release tarball is missing bin/caix" unless File.executable?(caix_binary)
+    end
+
+    libexec.install caix_binary => "caix-bin"
+    pkgshare.install "web", "python", "models", "scripts", "README.md", "LICENSE"
+    (pkgshare/"examples").install "docs/examples/cluster-stage-manifest.json"
+
+    (libexec/"caix").write <<~BASH
+      #!/usr/bin/env bash
+      set -euo pipefail
+      if [ "${1:-}" = "serve" ]; then
+        shift
+        exec "#{libexec}/caix-bin" serve \\
+          --web "#{pkgshare}/web" \\
+          --exports "${caix_exports:-$HOME/.caix/models/exports}" \\
+          --registry "#{pkgshare}/models/registry.json" \\
+          --convert-script "#{pkgshare}/python/converter/convert.py" \\
+          "$@"
+      fi
+      exec "#{libexec}/caix-bin" "$@"
+    BASH
+    chmod 0755, libexec/"caix"
+    bin.install_symlink libexec/"caix" => "caix"
+  end
+
+  def caveats
+    <<~EOS
+      caix requires Apple silicon and macOS 27+ with Apple's Core AI runtime.
+
+      Verify the host:
+        caix doctor
+
+      Put converted .aimodel bundles here, or set caix_exports:
+        ~/.caix/models/exports
+
+      Start the server:
+        caix serve
+    EOS
+  end
+
+  test do
+    assert_equal "caix #{version}", shell_output("#{bin}/caix --version").strip
+    system bin/"caix", "doctor", "--no-fail"
+    system bin/"caix", "cluster", "plan", "--help"
+    assert_match("--connect-timeout", shell_output("#{bin}/caix cluster join --help"))
+    assert_match("--speed-bytes", shell_output("#{bin}/caix deploy verify --help"))
+    assert_match("--min-mbps", shell_output("#{bin}/caix deploy verify --help"))
+    assert_match("--fail-on-warn", shell_output("#{bin}/caix deploy verify --help"))
+    assert_match("--cluster", shell_output("#{bin}/caix --help"))
+    assert_match("--prompt-tokens", shell_output("#{bin}/caix serve --help"))
+    assert_match("--join-timeout", shell_output("#{bin}/caix serve --help"))
+    system pkgshare/"scripts/check-distributed-readiness.sh", "--help"
+    system pkgshare/"scripts/check-tiny-cluster-smoke.sh", "--help"
+    system pkgshare/"scripts/check-stage-bundle-copy.sh", "--help"
+
+    output = shell_output("#{bin}/caix cluster plan " \
+                          "--manifest #{pkgshare}/examples/cluster-stage-manifest.json " \
+                          "--workers main=4,mini=2 --json")
+    plan = JSON.parse(output)
+    runtime = plan.fetch("runtime_plan")
+    boundary = plan.fetch("boundary_tensor")
+
+    assert_equal true, plan.fetch("dry_run")
+    assert_equal %w[embeddings transformer_layers transformer_layers final_norm_head],
+                 runtime.fetch("stages").map { |stage| stage.fetch("role") }
+    assert_equal 28, runtime.fetch("total_layer_count")
+    assert_equal "hidden_states", boundary.fetch("name")
+    assert_equal [1, -1, 1024], boundary.fetch("shape")
+    assert_equal "float16", boundary.fetch("scalar_type")
+    assert_equal boundary, runtime.fetch("boundary_tensor")
+  end
+end
