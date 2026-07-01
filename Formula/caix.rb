@@ -3,9 +3,9 @@ require "json"
 class Caix < Formula
   desc "Native Apple Core AI inference server for local language models"
   homepage "https://github.com/RedHillsMediaFL/caix"
-  url "https://github.com/RedHillsMediaFL/caix/releases/download/v0.2.2-beta/caix-0.2.2-beta-macos-arm64.tar.gz"
-  version "0.2.2-beta"
-  sha256 "720176101b3d7ac3309389e2a6aea009e9729a092c176f84ca0988f6cf6590b5"
+  url "https://github.com/RedHillsMediaFL/caix/releases/download/v0.2.3-beta/caix-0.2.3-beta-macos-arm64.tar.gz"
+  version "0.2.3-beta"
+  sha256 "02352ec5e6e068fb0f6bda7ae4897dcee964b0abd05f4252c66374413b92519d"
   license "MIT"
   head "https://github.com/RedHillsMediaFL/caix.git", branch: "main"
 
@@ -81,7 +81,9 @@ class Caix < Formula
     assert_match("--fail-on-warn", shell_output("#{bin}/caix deploy verify --help"))
     assert_match("--cluster", shell_output("#{bin}/caix --help"))
     assert_match("--prompt-tokens", shell_output("#{bin}/caix serve --help"))
+    assert_match("--prewarm", shell_output("#{bin}/caix serve --help"))
     assert_match("--join-timeout", shell_output("#{bin}/caix serve --help"))
+    assert_match("dashboard", shell_output("#{bin}/caix dashboard --help"))
     system pkgshare/"scripts/check-distributed-readiness.sh", "--help"
     system pkgshare/"scripts/check-tiny-cluster-smoke.sh", "--help"
     system pkgshare/"scripts/check-stage-bundle-copy.sh", "--help"
