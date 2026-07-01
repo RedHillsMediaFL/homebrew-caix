@@ -3,9 +3,9 @@ require "json"
 class Caix < Formula
   desc "Native Apple Core AI inference server for local language models"
   homepage "https://github.com/RedHillsMediaFL/caix"
-  url "https://github.com/RedHillsMediaFL/caix/releases/download/v0.2.5-beta/caix-0.2.5-beta-macos-arm64.tar.gz"
-  version "0.2.5-beta"
-  sha256 "fd065a34ffa678c7c697c2469207af2f31eabfdbf9dad7c6ab95cc885820ed62"
+  url "https://github.com/RedHillsMediaFL/caix/releases/download/v0.2.6-beta/caix-0.2.6-beta-macos-arm64.tar.gz"
+  version "0.2.6-beta"
+  sha256 "239116c008fd67d67e91798d3ef38aad35d1a8866badf1dff2f56395f0f80a34"
   license "MIT"
   head "https://github.com/RedHillsMediaFL/caix.git", branch: "main"
 
